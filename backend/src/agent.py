@@ -167,7 +167,6 @@ def run_agent_with_tools(question: str, max_iterations: int = 10):
         'iterations': iteration,
         'total_cost': total_cost,
         'total_tokens': total_tokens,
-        'conversation_history': conversation_history,
         'completed': iteration < max_iterations
     }
 
