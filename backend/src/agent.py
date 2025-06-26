@@ -1,15 +1,14 @@
-from mirascope import llm, prompt_template
-from typing import Literal
-from pydantic import BaseModel, Field
-import os 
-from dotenv import load_dotenv
+import os
 from datetime import datetime
-from brave import Brave
-import requests
+
 import markdownify
+import requests
+from brave import Brave
+from dotenv import load_dotenv
+from mirascope import llm, prompt_template
 
 load_dotenv()
- 
+
 def web_search(query: str) -> str:
     """
     Searches the web and returns the summaries of top results.
@@ -24,7 +23,7 @@ def web_search(query: str) -> str:
         brave = Brave(api_key=os.getenv("BRAVE_API_KEY"))
         results = brave.search(q=query, count=10, raw=True)
         web_results = results.get("web", {}).get("results", [])
-        
+
         summaries = []
         for result in web_results:
             if 'profile' not in result:
@@ -36,8 +35,8 @@ def web_search(query: str) -> str:
             summaries.append(f"{header}\n{title}\n{snippet}\n{url}")
         return "\n\n".join(summaries)
     except Exception as e:
-        return f"Error searching the web: {e}"   
-    
+        return f"Error searching the web: {e}"
+
 def extract_content(url: str) -> str:
     """
     Fetches the content of a given URL and returns it as a markdown page.
@@ -81,7 +80,7 @@ def extract_content(url: str) -> str:
         )
 def search(question: str, history: list = None):
         return {"computed_fields": {"current_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "history": history or []}}
-    
+
 def run_agent_with_tools(question: str, max_iterations: int = 10):
     """
     Run the agent with iterative tool calling until completion.
@@ -97,39 +96,39 @@ def run_agent_with_tools(question: str, max_iterations: int = 10):
     total_cost = 0
     total_tokens = 0
     iteration = 0
-    
+
     print(f"🤖 Starting agent for question: {question}")
     print("=" * 60)
-    
+
     while iteration < max_iterations:
         iteration += 1
         print(f"\n📍 Iteration {iteration}")
-        
+
         # Make the LLM call with conversation history
         result = search(question, history=conversation_history)
-        
+
         # making sure you dont go broke
         total_cost += result.cost
         total_tokens += result.input_tokens + result.output_tokens
-        
+
         # made the LLM a thinkoor
         print(f"💭 LLM Response: {result.content}")
-        
+
         # Add user message to history (this is the agents state)
         if iteration == 1 and result.user_message_param:
             conversation_history.append(result.user_message_param)
-        
+
         # Add assistant message to history
         conversation_history.append(result.message_param)
-        
+
         # Check if tools were called
         if result.tools:
             print(f"🔧 Tools called: {len(result.tools)}")
             tools_and_outputs = []
-            
+
             for i, tool in enumerate(result.tools):
                 print(f"   Tool {i+1}: {tool._name()}({tool.args})")
-                
+
                 # Execute the tool
                 try:
                     output = tool.call()
@@ -138,30 +137,30 @@ def run_agent_with_tools(question: str, max_iterations: int = 10):
                 except Exception as e:
                     print(f"   ❌ Tool error: {e}")
                     tools_and_outputs.append((tool, f"Error: {e}"))
-            
+
             # Add tool results to conversation history
             if tools_and_outputs:
                 conversation_history.extend(
                     result.tool_message_params(tools_and_outputs)
                 )
-            
+
             # Continue the loop to make another LLM call with the tool results
             continue
         else:
             # No tools called - agent is done
             print("✅ No tools called - Agent completed!")
             break
-    
+
     if iteration >= max_iterations:
         print(f"⚠️  Reached maximum iterations ({max_iterations})")
-    
+
     print("\n" + "=" * 60)
-    print(f"📊 Final Stats:")
+    print("📊 Final Stats:")
     print(f"   Iterations: {iteration}")
     print(f"   Total Cost: ${total_cost:.6f}")
     print(f"   Total Tokens: {total_tokens}")
     print(f"   Conversation History Length: {len(conversation_history)}")
-    
+
     return {
         'final_response': result.content,
         'iterations': iteration,
