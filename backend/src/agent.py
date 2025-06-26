@@ -6,6 +6,7 @@ import requests
 from brave import Brave
 from dotenv import load_dotenv
 from mirascope import llm, prompt_template
+import lilypad
 
 load_dotenv()
 

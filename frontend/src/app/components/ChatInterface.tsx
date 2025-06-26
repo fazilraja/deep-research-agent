@@ -13,7 +13,6 @@ type ChatInterfaceProps = {
     input: string;
     onInputChange: (value: string) => void;
     onSubmit: (e: FormEvent) => void;
-    onBack: () => void;
 };
 
 // Helper function to parse and format the message content
@@ -32,8 +31,7 @@ export function ChatInterface({
     messages,
     input,
     onInputChange,
-    onSubmit,
-    onBack
+    onSubmit
 }: ChatInterfaceProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [documentViewerVisible, setDocumentViewerVisible] = useState(false);
@@ -107,10 +105,7 @@ export function ChatInterface({
                     <div className="sticky top-0 z-10 backdrop-blur-sm mb-6 -mx-2 sm:-mx-6 px-2 sm:px-6 py-2 flex items-center justify-center">
                         <div className="flex items-center justify-center max-w-4xl mx-auto w-full">
                             <div className="flex items-center gap-2 sm:gap-4">
-                                <h1
-                                    onClick={onBack}
-                                    className="text-lg sm:text-xl font-mono text-gray-400 truncate hover:text-green-400 transition-colors px-2 sm:px-4 py-2"
-                                >
+                                <h1 className="text-lg sm:text-xl font-mono text-gray-400 truncate px-2 sm:px-4 py-2">
                                     Deep Research <span className="text-green-500/50">●</span>
                                 </h1>
                             </div>

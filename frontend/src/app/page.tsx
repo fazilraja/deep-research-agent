@@ -1,12 +1,10 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { ChatInterface, Message } from "./components/ChatInterface";
-import { Landing } from "./components/Landing";
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [started, setStarted] = useState(false);
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showSupport, setShowSupport] = useState(false);
   const [hasShownSupport, setHasShownSupport] = useState(false);
@@ -109,19 +107,12 @@ export default function Home() {
     }
   };
 
-  if (!started) {
-    return <Landing onStart={() => setStarted(true)} />;
-  }
-
   return (
-    <>
-      <ChatInterface
-        messages={messages}
-        input={input}
-        onInputChange={setInput}
-        onSubmit={handleSubmit}
-        onBack={() => setStarted(false)}
-      />
-    </>
+    <ChatInterface
+      messages={messages}
+      input={input}
+      onInputChange={setInput}
+      onSubmit={handleSubmit}
+    />
   );
 }
