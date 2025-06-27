@@ -5,6 +5,7 @@ description = "Deep Research Backend"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "exa-py>=1.14.13",
     "fastapi>=0.104.0",
     "google-genai>=1.2.0",
     "ipykernel>=6.29.5",
