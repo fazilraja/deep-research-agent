@@ -1,22 +1,27 @@
 # Fullstack Search Agent
 
-A modern AI-powered search agent that combines multiple LLM providers with web search capabilities to provide comprehensive, real-time research assistance.
+A sophisticated AI-powered research platform featuring a **Deep Research Agent** that conducts strategic, multi-iteration searches to provide comprehensive research reports. The system combines multiple LLM providers with advanced web search capabilities for real-time research assistance.
 
 ## Features
 
+- **Deep Research Agent**: Multi-agent orchestration with strategic planning, execution, and synthesis
 - **Multi-LLM Support**: Google Gemini, Anthropic Claude, and OpenAI GPT
-- **Intelligent Web Search**: Iterative search with content extraction using Brave Search API
+- **Advanced Web Search**: Exa API integration with autoprompt optimization
+- **Context-Aware Planning**: Each search iteration considers previous findings
+- **Strategic Search Intents**: Five search types for comprehensive coverage
 - **Real-time Streaming**: Live search progress via Server-Sent Events
 - **Interactive UI**: Clean Next.js interface with TypeScript
-- **Development Tools**: Jupyter notebooks for testing and experimentation
+- **Observability**: Full tracing with Lilypad integration
 
 ## Tech Stack
 
 **Backend:**
 - FastAPI (Python web framework)
 - Mirascope (LLM orchestration)
+- Exa API (Advanced web search)
+- Lilypad (Tracing and observability)
 - UV (Python package manager)
-- Brave Search API
+- Pydantic (Data validation)
 
 **Frontend:**
 - Next.js 15 with App Router
@@ -56,7 +61,7 @@ Configure your API keys in `backend/.env`:
 ```env
 GOOGLE_API_KEY=your_google_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
-BRAVE_API_KEY=your_brave_search_api_key_here
+EXA_API_KEY=your_exa_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
@@ -79,8 +84,8 @@ npm install
 2. **Anthropic Claude API**: 
    - Get your key from [Anthropic Console](https://console.anthropic.com/)
 
-3. **Brave Search API**: 
-   - Get your key from [Brave Search API](https://api.search.brave.com/)
+3. **Exa API**: 
+   - Get your key from [Exa API](https://dashboard.exa.ai/)
 
 4. **OpenAI API** (optional): 
    - Get your key from [OpenAI Platform](https://platform.openai.com/)
@@ -148,16 +153,141 @@ npm run dev
 npm run lint
 ```
 
-## Project Structure
+## Deep Research Agent Architecture
 
+The core of this system is a sophisticated research agent that uses multi-agent orchestration:
+
+### System Architecture
+
+```mermaid
+graph TB
+    A[User Query] --> B[Research Context]
+    B --> C[Planning Agent]
+    C --> D[Search Plans]
+    D --> E[Execution Agent]
+    E --> F[Search Results]
+    F --> G[Update Context]
+    G --> H{Sufficient Info?}
+    H -->|No| C
+    H -->|Yes| I[Synthesis Agent]
+    I --> J[Final Report]
+    
+    subgraph "Data Models"
+        K[SearchResult]
+        L[SearchPlan]
+        M[ResearchContext]
+        N[SearchIntent]
+    end
+    
+    subgraph "External APIs"
+        O[Exa Search API]
+        P[OpenAI GPT-4o-mini]
+    end
+    
+    E --> O
+    C --> P
+    E --> P
+    I --> P
 ```
 
+### Core Data Models
 
+```mermaid
+classDiagram
+    class ResearchContext {
+        +string query
+        +SearchResult[] search_history
+        +string[] key_findings
+        +string[] unanswered_questions
+        +int search_iterations
+    }
+    
+    class SearchResult {
+        +string title
+        +string url
+        +string content
+        +float relevance_score
+        +SearchIntent search_intent
+        +datetime timestamp
+    }
+    
+    class SearchPlan {
+        +SearchIntent intent
+        +string query
+        +string reasoning
+    }
+    
+    class SearchIntent {
+        <<enumeration>>
+        INITIAL_EXPLORATION
+        DEEP_DIVE
+        FACT_CHECKING
+        RELATED_TOPICS
+        SYNTHESIS
+    }
+    
+    ResearchContext --> SearchResult
+    SearchPlan --> SearchIntent
+    SearchResult --> SearchIntent
+```
+
+### Agent Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant RC as ResearchContext
+    participant PA as Planning Agent
+    participant EA as Execution Agent
+    participant EXA as Exa API
+    participant SA as Synthesis Agent
+    
+    U->>RC: Initial Query
+    
+    loop Research Iterations (max 5)
+        RC->>PA: Current Context + History
+        PA->>PA: Analyze gaps & plan searches
+        PA->>RC: SearchPlan[]
+        
+        loop For each Search Plan (max 2)
+            RC->>EA: SearchPlan + Context
+            EA->>EXA: Execute Search
+            EXA->>EA: Raw Results
+            EA->>EA: Analyze & Extract Findings
+            EA->>RC: Update with Results
+        end
+        
+        RC->>RC: Check if sufficient info
+    end
+    
+    RC->>SA: All Research Data
+    SA->>SA: Synthesize Report
+    SA->>U: Final Report
+```
+
+### Three Specialized Agents
+
+1. **Planning Agent** (`plan_searches`): Analyzes research context and plans strategic searches
+2. **Execution Agent** (`execute_search`): Executes searches and extracts findings
+3. **Synthesis Agent** (`synthesize_research`): Creates comprehensive final reports
+
+### Usage
+
+```python
+from src.agent import run_deep_research_agent
+
+result = run_deep_research_agent(
+    "Your research question here",
+    max_iterations=5
+)
+
+print(result['final_report'])
+```
 
 ## API Endpoints
 
 - `GET /` - Health check
-- `POST /search` - Streaming search endpoint
+- `POST /search` - Streaming search endpoint  
 - `GET /docs` - API documentation
 
 ## Contributing

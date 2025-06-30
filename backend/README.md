@@ -2,55 +2,201 @@
 
 A sophisticated web research agent that conducts strategic, multi-iteration searches to provide comprehensive research reports.
 
-## Architecture
+## System Architecture
 
-The agent follows a three-phase approach:
+The agent uses a multi-agent orchestration pattern with three specialized LLM agents working together:
 
-### 1. Planning Phase (`plan_searches`)
-- Analyzes current research context and search history
-- Generates strategic search plans based on knowledge gaps
-- Plans up to 3 searches per iteration with specific intents:
-  - `initial_exploration`: Broad topic discovery
-  - `deep_dive`: Detailed investigation of specific aspects
-  - `fact_checking`: Verification of claims and information
-  - `related_topics`: Exploration of connected subjects
-  - `synthesis`: Combining information from multiple sources
+```mermaid
+graph TB
+    A[User Query] --> B[Research Context]
+    B --> C[Planning Agent]
+    C --> D[Search Plans]
+    D --> E[Execution Agent]
+    E --> F[Search Results]
+    F --> G[Update Context]
+    G --> H{Sufficient Info?}
+    H -->|No| C
+    H -->|Yes| I[Synthesis Agent]
+    I --> J[Final Report]
+    
+    subgraph "Data Models"
+        K[SearchResult]
+        L[SearchPlan]
+        M[ResearchContext]
+        N[SearchIntent]
+    end
+    
+    subgraph "External APIs"
+        O[Exa Search API]
+        P[OpenAI GPT-4o-mini]
+    end
+    
+    E --> O
+    C --> P
+    E --> P
+    I --> P
+```
 
-### 2. Execution Phase (`execute_search`)
-- Executes planned searches using the Exa API
-- Analyzes results in context of overall research
-- Extracts key findings and identifies remaining questions
-- Maintains relevance scoring and search intent tracking
+## Component Deep Dive
 
-### 3. Synthesis Phase (`synthesize_research`)
-- Creates comprehensive final report
-- Provides executive summary and main findings
-- Addresses original question with evidence
-- Identifies limitations and areas for further research
-- Includes citations from all sources
+### Core Data Models
 
-## Core Components
+The system is built around four key data structures:
 
-### Data Models
-- **`SearchResult`**: Structured search result with metadata
-- **`ResearchContext`**: Maintains research state and history
-- **`SearchPlan`**: Planned search with intent and reasoning
-- **`SearchIntent`**: Enum defining search purposes
+```mermaid
+classDiagram
+    class ResearchContext {
+        +string query
+        +SearchResult[] search_history
+        +string[] key_findings
+        +string[] unanswered_questions
+        +int search_iterations
+    }
+    
+    class SearchResult {
+        +string title
+        +string url
+        +string content
+        +float relevance_score
+        +SearchIntent search_intent
+        +datetime timestamp
+    }
+    
+    class SearchPlan {
+        +SearchIntent intent
+        +string query
+        +string reasoning
+    }
+    
+    class SearchIntent {
+        <<enumeration>>
+        INITIAL_EXPLORATION
+        DEEP_DIVE
+        FACT_CHECKING
+        RELATED_TOPICS
+        SYNTHESIS
+    }
+    
+    ResearchContext --> SearchResult
+    SearchPlan --> SearchIntent
+    SearchResult --> SearchIntent
+```
 
-### Key Functions
-- **`get_search_results()`**: Enhanced search with Exa API integration
-- **`run_deep_research_agent()`**: Main orchestration function
-- **Agent functions**: LLM-powered planning, execution, and synthesis
+### Agent Flow
 
-## How It Works
+The research process follows this sequence:
 
-1. **Initialization**: Creates `ResearchContext` with the user's question
-2. **Iterative Research**: 
-   - Plans strategic searches based on current knowledge
-   - Executes searches and analyzes results
-   - Updates context with findings and new questions
-   - Continues until sufficient information is gathered (max 5 iterations)
-3. **Final Synthesis**: Generates comprehensive report from all findings
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant RC as ResearchContext
+    participant PA as Planning Agent
+    participant EA as Execution Agent
+    participant EXA as Exa API
+    participant SA as Synthesis Agent
+    
+    U->>RC: Initial Query
+    
+    loop Research Iterations (max 5)
+        RC->>PA: Current Context + History
+        PA->>PA: Analyze gaps & plan searches
+        PA->>RC: SearchPlan[]
+        
+        loop For each Search Plan (max 2)
+            RC->>EA: SearchPlan + Context
+            EA->>EXA: Execute Search
+            EXA->>EA: Raw Results
+            EA->>EA: Analyze & Extract Findings
+            EA->>RC: Update with Results
+        end
+        
+        RC->>RC: Check if sufficient info
+    end
+    
+    RC->>SA: All Research Data
+    SA->>SA: Synthesize Report
+    SA->>U: Final Report
+```
+
+## Agent Orchestration Details
+
+### Planning Agent (`plan_searches`)
+**Function**: Strategic search planning based on research context
+**Input**: `ResearchContext` with history and findings
+**Output**: List of `SearchPlan` objects
+**Key Logic**:
+- Analyzes last 5 search results for context
+- Identifies knowledge gaps and unanswered questions
+- Plans up to 3 strategic searches per iteration
+- Each plan includes intent, optimized query, and reasoning
+
+```mermaid
+flowchart LR
+    A[Research Context] --> B[Analyze History]
+    B --> C[Identify Gaps]
+    C --> D[Generate Plans]
+    D --> E[Search Plan 1]
+    D --> F[Search Plan 2]
+    D --> G[Search Plan 3]
+    
+    subgraph "Search Intents"
+        H[initial_exploration]
+        I[deep_dive]
+        J[fact_checking]
+        K[related_topics]
+        L[synthesis]
+    end
+```
+
+### Execution Agent (`execute_search`)
+**Function**: Execute searches and analyze results in context
+**Input**: `SearchPlan` + `ResearchContext`
+**Output**: Analyzed search results with extracted findings
+**Key Logic**:
+- Calls `get_search_results()` tool function
+- Analyzes results against research context
+- Extracts key findings and remaining questions
+- Updates search intent for each result
+
+### Synthesis Agent (`synthesize_research`)
+**Function**: Create comprehensive final report
+**Input**: Complete `ResearchContext` with all findings
+**Output**: Structured research report
+**Key Logic**:
+- Combines all search history and findings
+- Creates executive summary
+- Provides evidence-based conclusions
+- Identifies research limitations
+
+## Key Implementation Details
+
+### Search Function (`get_search_results`)
+- **API**: Exa search with autoprompt optimization
+- **Result Processing**: Structured data with relevance scoring
+- **Content Limiting**: 2000 chars per result to manage context
+- **Error Handling**: Graceful fallback on API failures
+
+### Main Orchestrator (`run_deep_research_agent`)
+**Control Flow**:
+1. Initialize `ResearchContext` with user query
+2. Iterative research loop (max 5 iterations):
+   - Generate search plans via Planning Agent
+   - Execute up to 2 searches per iteration
+   - Update context with results and findings
+   - Check termination conditions
+3. Synthesize final report via Synthesis Agent
+
+**Termination Conditions**:
+- Max iterations reached (5)
+- Sufficient findings gathered (≥5 key findings + ≥3 iterations)
+- Planning errors prevent continuation
+
+### State Management
+The `ResearchContext` acts as the central state store:
+- Accumulates search history across iterations  
+- Tracks key findings and unanswered questions
+- Maintains iteration count for planning decisions
+- Provides context for strategic search planning
 
 ## Features
 
