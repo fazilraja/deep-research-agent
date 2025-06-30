@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.agent import run_agent_with_tools
+from src.agent import run_deep_research_agent, ResearchContext
 
 app = FastAPI(title="Search Agent API", version="1.0.0")
 
@@ -24,11 +24,9 @@ class SearchRequest(BaseModel):
     max_iterations: int = 10
 
 class SearchResponse(BaseModel):
-    final_response: str
+    final_report: str
+    research_context: ResearchContext
     iterations: int
-    total_cost: float
-    total_tokens: int
-    completed: bool
 
 @app.get("/health")
 async def health_check():
@@ -37,7 +35,7 @@ async def health_check():
 @app.post("/api/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
     """Regular search endpoint that returns the final result."""
-    result = run_agent_with_tools(request.query, request.max_iterations)
+    result = run_deep_research_agent(request.query, request.max_iterations)
     return SearchResponse(**result)
 
 @app.get("/api/search/stream")
@@ -57,7 +55,7 @@ async def search_stream(query: str, max_iterations: int = 10):
 
             def run_agent():
                 try:
-                    result = run_agent_with_tools(query, max_iterations)
+                    result = run_deep_research_agent(query, max_iterations)
                     result_queue.put(result)
                 except Exception as e:
                     result_queue.put({"error": str(e)})

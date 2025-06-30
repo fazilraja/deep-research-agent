@@ -6,10 +6,13 @@ from enum import Enum
 
 import exa_py
 from dotenv import load_dotenv
-from mirascope import llm, prompt_template
+from mirascope import llm, prompt_template, BaseDynamicConfig
 from pydantic import BaseModel, Field
+import lilypad
 
 load_dotenv()
+
+lilypad.configure()
 
 # Data models for structured research
 class SearchIntent(str, Enum):
@@ -33,9 +36,7 @@ class ResearchContext(BaseModel):
     search_history: List[SearchResult] = Field(default_factory=list)
     key_findings: List[str] = Field(default_factory=list)
     unanswered_questions: List[str] = Field(default_factory=list)
-    search_iterations: int = 0
-    total_cost: float = 0.0
-    total_tokens: int = 0
+    search_iterations: int = Field(default=0)
 
 @dataclass
 class SearchPlan:
@@ -78,7 +79,8 @@ def get_search_results(query: str, num_results: int = 10, use_autoprompt: bool =
         return []
 
 # Agent for planning searches based on research context
-@llm.call(provider='google', model='gemini-2.0-flash', response_model=List[SearchPlan])
+@lilypad.trace(versioning='automatic')
+@llm.call(provider='openai', model='gpt-4o-mini', response_model=List[SearchPlan])
 @prompt_template("""
         SYSTEM:
         You are a research planning agent. Your task is to analyze the current research context 
@@ -87,7 +89,6 @@ def get_search_results(query: str, num_results: int = 10, use_autoprompt: bool =
         Current date: {current_date}
         
         Research Context:
-        - Original Query: {original_query}
         - Search Iterations Completed: {iterations}
         - Key Findings So Far: {key_findings}
         - Unanswered Questions: {unanswered_questions}
@@ -107,13 +108,22 @@ def get_search_results(query: str, num_results: int = 10, use_autoprompt: bool =
         - Your reasoning for this search
         
         Focus on searches that will meaningfully advance the research.
+        USER: {original_query}
         """)
-def plan_searches(research_context: ResearchContext):
+def plan_searches(research_context: ResearchContext) -> BaseDynamicConfig:
+    """
+    Plans strategic searches based on current research context.
+    
+    Args:
+        research_context: Current state of the research process
+        
+    Returns:
+        BaseDynamicConfig with computed template variables
+    """  
     history_summary = "\n".join([
         f"- [{r.search_intent}] {r.title}: {r.content[:200]}..."
         for r in research_context.search_history[-5:]  # Last 5 results
     ])
-    
     return {
         "computed_fields": {
             "current_date": datetime.now().strftime("%Y-%m-%d"),
@@ -126,14 +136,14 @@ def plan_searches(research_context: ResearchContext):
     }
 
 # Enhanced search agent with research context awareness
-@llm.call(provider='google', model='gemini-2.0-flash', tools=[get_search_results])
+@lilypad.trace(versioning='automatic')
+@llm.call(provider='openai', model='gpt-4o-mini', tools=[get_search_results])
 @prompt_template("""
         SYSTEM:
         You are an expert web researcher with access to research context and history.
         Current date: {current_date}
         
         Research Context:
-        - Original Query: {original_query}
         - Current Search Intent: {search_intent}
         - Search Iteration: {iteration}
         - Key Findings So Far: {key_findings}
@@ -151,22 +161,43 @@ def plan_searches(research_context: ResearchContext):
         3. What questions remain unanswered
         
         Provide a synthesis of the search results.
+        
+        USER: {original_query}
         """)
-def execute_search(search_plan: SearchPlan, research_context: ResearchContext):
+def execute_search(search_plan: SearchPlan, research_context: ResearchContext) -> BaseDynamicConfig:
+    """
+    Executes a search plan and analyzes results in research context.
+    
+    Args:
+        search_plan: The planned search to execute
+        research_context: Current state of the research process
+        
+    Returns:
+        BaseDynamicConfig with computed template variables
+    """
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    original_query = research_context.query
+    search_intent = search_plan.intent.value
+    iteration = research_context.search_iterations
+    key_findings = "\n".join(research_context.key_findings) if research_context.key_findings else "None yet"
+    search_query = search_plan.query
+    search_reasoning = search_plan.reasoning
+    
     return {
         "computed_fields": {
-            "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "original_query": research_context.query,
-            "search_intent": search_plan.intent.value,
-            "iteration": research_context.search_iterations,
-            "key_findings": "\n".join(research_context.key_findings) if research_context.key_findings else "None yet",
-            "search_query": search_plan.query,
-            "search_reasoning": search_plan.reasoning
+            "current_date": current_date,
+            "original_query": original_query,
+            "search_intent": search_intent,
+            "iteration": iteration,
+            "key_findings": key_findings,
+            "search_query": search_query,
+            "search_reasoning": search_reasoning
         }
     }
 
 # Synthesis agent for creating final research report
-@llm.call(provider='google', model='gemini-2.0-flash')
+@lilypad.trace(versioning='automatic')
+@llm.call(provider='openai', model='gpt-4o-mini')
 @prompt_template("""
         SYSTEM:
         You are a research synthesis expert. Create a comprehensive report based on the research conducted.
@@ -188,22 +219,46 @@ def execute_search(search_plan: SearchPlan, research_context: ResearchContext):
         5. Includes relevant citations from the sources
         
         Format the report with clear sections and maintain objectivity.
+        
+        USER: {query}
         """)
-def synthesize_research(research_context: ResearchContext):
+def synthesize_research(research_context: ResearchContext) -> BaseDynamicConfig:
+    """
+    Synthesizes all research findings into a comprehensive report.
+    
+    Args:
+        research_context: Complete research context with all findings
+        
+    Returns:
+        BaseDynamicConfig with computed template variables
+    """
     all_results_text = "\n\n".join([
         f"[{r.search_intent.value}] Source: {r.title} ({r.url})\n{r.content[:500]}..."
         for r in research_context.search_history
     ])
     
+    query = research_context.query
+    total_searches = research_context.search_iterations
+    key_findings = "\n".join(research_context.key_findings)
+    
+    # Debug logging
+    print(f"DEBUG synthesize_research:")
+    print(f"  query: {query}")
+    print(f"  total_searches: {total_searches}")
+    print(f"  key_findings: {key_findings}")
+    print(f"  search_history length: {len(research_context.search_history)}")
+    print(f"  all_results_text length: {len(all_results_text)}")
+    
     return {
         "computed_fields": {
-            "query": research_context.query,
-            "total_searches": research_context.search_iterations,
-            "key_findings": "\n".join(research_context.key_findings),
+            "query": query,
+            "total_searches": total_searches,
+            "key_findings": key_findings,
             "all_results": all_results_text
         }
     }
 
+@lilypad.trace(versioning='automatic')
 def run_deep_research_agent(question: str, max_iterations: int = 5):
     """
     Run the enhanced deep research agent with strategic planning and synthesis.
@@ -220,12 +275,11 @@ def run_deep_research_agent(question: str, max_iterations: int = 5):
         
         # Step 1: Plan searches based on current context
         try:
-            print("research_context", research_context)
             search_plans = plan_searches(research_context)
-            print(f"📋 Generated {len(search_plans.content)} search plans")
+            print(f"📋 Generated {len(search_plans)} search plans")
             
             # Execute each planned search
-            for i, plan in enumerate(search_plans.content[:2]):  # Limit to 2 searches per iteration
+            for i, plan in enumerate(search_plans[:2]):  # Limit to 2 searches per iteration
                 print(f"\n🔍 Executing search {i+1}: {plan.intent.value}")
                 print(f"   Query: {plan.query}")
                 print(f"   Reasoning: {plan.reasoning}")
@@ -255,10 +309,6 @@ def run_deep_research_agent(question: str, max_iterations: int = 5):
                             if "finding" in line.lower() or "discovered" in line.lower():
                                 research_context.key_findings.append(line.strip())
                 
-                # Update costs
-                research_context.total_cost += search_result.cost
-                research_context.total_tokens += search_result.input_tokens + search_result.output_tokens
-                
         except Exception as e:
             print(f"❌ Planning error: {e}")
             break
@@ -277,22 +327,21 @@ def run_deep_research_agent(question: str, max_iterations: int = 5):
     print(f"   Total Iterations: {research_context.search_iterations}")
     print(f"   Total Searches: {len(research_context.search_history)}")
     print(f"   Key Findings: {len(research_context.key_findings)}")
-    print(f"   Total Cost: ${research_context.total_cost:.6f}")
-    print(f"   Total Tokens: {research_context.total_tokens}")
     
     return {
         'final_report': final_report.content,
         'research_context': research_context,
         'iterations': research_context.search_iterations,
-        'total_cost': research_context.total_cost,
-        'total_tokens': research_context.total_tokens
     }
 
 if __name__ == "__main__":
     # Example usage
+    # result = plan_searches(ResearchContext(query="What is Paycom and what are their plans for the future using AI?"))
+    # print(result)
+    
     result = run_deep_research_agent(
-        "What is Paycom and what are their plans for the future using AI?",
-        max_iterations=5
+        "Give me a report of last nights UFC fights especially the main card, how did Charles do?",
+        max_iterations=3
     )
     print("\n📄 FINAL REPORT:")
     print(result['final_report'])
